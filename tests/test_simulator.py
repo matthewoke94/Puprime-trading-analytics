@@ -9,6 +9,7 @@ from simulator import (
     generate_trades,
     generate_transactions,
     validate_simulated_data,
+    save_to_db,
 )
 
 
@@ -71,3 +72,17 @@ def test_validate_simulated_data_detects_negative_duration(sample_data):
     bad_trades.loc[0, "close_time"] = bad_trades.loc[0, "open_time"] - pd.Timedelta(hours=1)
     results = validate_simulated_data(traders, bad_trades, transactions)
     assert results["no_negative_trade_durations"] is False
+
+
+def test_save_to_db_persists_data():
+    traders = generate_traders(5)
+    trades = generate_trades(traders, 10)
+    transactions = generate_transactions(traders, 5)
+
+    if not os.getenv("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set, skipping DB integration test")
+
+    counts = save_to_db(traders, trades, transactions)
+    assert counts["traders"] == 5
+    assert counts["trades"] == 10
+    assert counts["transactions"] == 5

@@ -13,20 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 def generate_traders(n: int = 100) -> pd.DataFrame:
-    """
-    Generate simulated trader accounts.
-
-    Args:
-        n: Number of traders to generate
-
-    Returns:
-        DataFrame of trader accounts
-    """
     traders = []
     for _ in range(n):
-        registration_date = fake.date_between(
-            start_date="-2y", end_date="today"
-        )
+        registration_date = fake.date_between(start_date="-2y", end_date="today")
         traders.append({
             "trader_id": str(uuid.uuid4()),
             "name": fake.name(),
@@ -40,20 +29,9 @@ def generate_traders(n: int = 100) -> pd.DataFrame:
 
 
 def generate_trades(traders_df: pd.DataFrame, n: int = 500) -> pd.DataFrame:
-    """
-    Generate simulated trade records.
-
-    Args:
-        traders_df: DataFrame of trader accounts
-        n: Number of trades to generate
-
-    Returns:
-        DataFrame of trade records
-    """
     trader_ids = traders_df["trader_id"].tolist()
     symbols = ["EUR/USD", "GBP/USD", "USD/JPY", "XAU/USD", "BTC/USD"]
     trades = []
-
     for _ in range(n):
         open_time = fake.date_time_between(start_date="-1y", end_date="now")
         duration = timedelta(minutes=random.randint(5, 1440))
@@ -73,22 +51,9 @@ def generate_trades(traders_df: pd.DataFrame, n: int = 500) -> pd.DataFrame:
     return pd.DataFrame(trades)
 
 
-def generate_transactions(
-    traders_df: pd.DataFrame, n: int = 300
-) -> pd.DataFrame:
-    """
-    Generate simulated deposit/withdrawal transactions.
-
-    Args:
-        traders_df: DataFrame of trader accounts
-        n: Number of transactions to generate
-
-    Returns:
-        DataFrame of transactions
-    """
+def generate_transactions(traders_df: pd.DataFrame, n: int = 300) -> pd.DataFrame:
     trader_ids = traders_df["trader_id"].tolist()
     transactions = []
-
     for _ in range(n):
         transactions.append({
             "transaction_id": str(uuid.uuid4()),
@@ -96,29 +61,14 @@ def generate_transactions(
             "type": random.choice(["deposit", "deposit", "withdrawal"]),
             "amount": round(random.uniform(100, 10000), 2),
             "currency": "USD",
-            "timestamp": fake.date_time_between(
-                start_date="-1y", end_date="now"
-            ),
+            "timestamp": fake.date_time_between(start_date="-1y", end_date="now"),
             "status": random.choice(["completed", "completed", "pending", "failed"]),
         })
     return pd.DataFrame(transactions)
 
 
-def validate_simulated_data(
-    traders_df: pd.DataFrame,
-    trades_df: pd.DataFrame,
-    transactions_df: pd.DataFrame
-) -> dict:
-    """
-    Run data quality checks on simulated datasets before they're used
-    downstream. Catches internal inconsistencies that would otherwise
-    silently produce misleading analytics.
-
-    Returns:
-        Dict of {check_name: passed (bool)} for every check run.
-    """
+def validate_simulated_data(traders_df, trades_df, transactions_df) -> dict:
     results = {}
-
     valid_trader_ids = set(traders_df["trader_id"])
 
     orphan_trades = ~trades_df["trader_id"].isin(valid_trader_ids)
@@ -139,8 +89,97 @@ def validate_simulated_data(
         logger.error(f"Data quality checks failed: {failed}")
     else:
         logger.info("All data quality checks passed.")
-
     return results
+
+
+def save_to_db(traders_df, trades_df, transactions_df) -> dict:
+    import os
+    import psycopg2
+    from psycopg2.extras import execute_values
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    database_url = os.getenv("DATABASE_URL")
+
+    if not database_url:
+        logger.error("DATABASE_URL not found. Skipping persistence.")
+        return {}
+
+    counts = {"traders": 0, "trades": 0, "transactions": 0}
+
+    try:
+        conn = psycopg2.connect(database_url)
+        cur = conn.cursor()
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sim_traders (
+                trader_id VARCHAR(36) PRIMARY KEY,
+                name VARCHAR(100),
+                email VARCHAR(100),
+                country VARCHAR(100),
+                account_type VARCHAR(20),
+                registration_date DATE,
+                is_active BOOLEAN
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sim_trades (
+                trade_id VARCHAR(36) PRIMARY KEY,
+                trader_id VARCHAR(36) REFERENCES sim_traders(trader_id),
+                symbol VARCHAR(20),
+                direction VARCHAR(10),
+                lot_size NUMERIC(10,2),
+                open_price NUMERIC(10,5),
+                close_price NUMERIC(10,5),
+                open_time TIMESTAMP,
+                close_time TIMESTAMP,
+                profit_loss NUMERIC(10,2),
+                status VARCHAR(20)
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sim_transactions (
+                transaction_id VARCHAR(36) PRIMARY KEY,
+                trader_id VARCHAR(36) REFERENCES sim_traders(trader_id),
+                type VARCHAR(20),
+                amount NUMERIC(10,2),
+                currency VARCHAR(10),
+                timestamp TIMESTAMP,
+                status VARCHAR(20)
+            );
+        """)
+        conn.commit()
+
+        traders_records = list(traders_df[[
+            "trader_id", "name", "email", "country",
+            "account_type", "registration_date", "is_active"
+        ]].itertuples(index=False, name=None))
+        execute_values(cur, "INSERT INTO sim_traders VALUES %s ON CONFLICT (trader_id) DO NOTHING;", traders_records)
+        counts["traders"] = len(traders_records)
+
+        trades_records = list(trades_df[[
+            "trade_id", "trader_id", "symbol", "direction", "lot_size",
+            "open_price", "close_price", "open_time", "close_time",
+            "profit_loss", "status"
+        ]].itertuples(index=False, name=None))
+        execute_values(cur, "INSERT INTO sim_trades VALUES %s ON CONFLICT (trade_id) DO NOTHING;", trades_records)
+        counts["trades"] = len(trades_records)
+
+        transactions_records = list(transactions_df[[
+            "transaction_id", "trader_id", "type", "amount",
+            "currency", "timestamp", "status"
+        ]].itertuples(index=False, name=None))
+        execute_values(cur, "INSERT INTO sim_transactions VALUES %s ON CONFLICT (transaction_id) DO NOTHING;", transactions_records)
+        counts["transactions"] = len(transactions_records)
+
+        conn.commit()
+        conn.close()
+        logger.info(f"Persisted to database (attempted): {counts}")
+        return counts
+
+    except Exception as e:
+        logger.error(f"Database persistence failed: {e}")
+        raise
 
 
 if __name__ == "__main__":
@@ -159,6 +198,8 @@ if __name__ == "__main__":
     for check, passed in validation_results.items():
         status = "PASS" if passed else "FAIL"
         print(f"  [{status}] {check}")
+
+    save_to_db(traders, trades, transactions)
 
     print("\nSample trader:")
     print(traders.head(2))
