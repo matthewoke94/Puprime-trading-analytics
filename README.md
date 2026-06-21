@@ -83,9 +83,9 @@ streamlit run src/analytics/dashboard.py
 
 ## Known gaps / next steps
 
-- Data is simulated, not connected to a live database — the natural next step is pointing `trader_analytics.py` at a real Postgres instance (the schema already mirrors [Project 1's](https://github.com/matthewoke94/puprime-market-pipeline) database conventions)
+- The dashboard itself still reads from freshly-generated in-memory data on each cold start rather than querying the persisted `sim_traders`/`sim_trades`/`sim_transactions` tables directly — the persistence layer exists and is tested, but `dashboard.py` hasn't been switched over to read from it yet
 - No authentication on the dashboard — fine for a portfolio demo, would need access control in production
-- Dashboard regenerates simulated data on cold start rather than persisting it
+- `trader_analytics.py` functions currently accept DataFrames as input; pointing them at the database would mean adding a thin data-access layer that queries Postgres and passes the result through unchanged
 
 ## Business value
 
