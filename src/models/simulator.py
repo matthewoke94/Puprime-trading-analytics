@@ -1,3 +1,4 @@
+import logging
 import random
 import uuid
 from datetime import datetime, timedelta
@@ -7,6 +8,8 @@ from faker import Faker
 
 fake = Faker()
 random.seed(42)
+
+logger = logging.getLogger(__name__)
 
 
 def generate_traders(n: int = 100) -> pd.DataFrame:
@@ -101,7 +104,48 @@ def generate_transactions(
     return pd.DataFrame(transactions)
 
 
+def validate_simulated_data(
+    traders_df: pd.DataFrame,
+    trades_df: pd.DataFrame,
+    transactions_df: pd.DataFrame
+) -> dict:
+    """
+    Run data quality checks on simulated datasets before they're used
+    downstream. Catches internal inconsistencies that would otherwise
+    silently produce misleading analytics.
+
+    Returns:
+        Dict of {check_name: passed (bool)} for every check run.
+    """
+    results = {}
+
+    valid_trader_ids = set(traders_df["trader_id"])
+
+    orphan_trades = ~trades_df["trader_id"].isin(valid_trader_ids)
+    results["no_orphan_trades"] = not orphan_trades.any()
+
+    orphan_transactions = ~transactions_df["trader_id"].isin(valid_trader_ids)
+    results["no_orphan_transactions"] = not orphan_transactions.any()
+
+    invalid_duration = trades_df["close_time"] < trades_df["open_time"]
+    results["no_negative_trade_durations"] = not invalid_duration.any()
+
+    results["positive_lot_sizes"] = (trades_df["lot_size"] > 0).all()
+    results["positive_transaction_amounts"] = (transactions_df["amount"] > 0).all()
+    results["no_duplicate_traders"] = not traders_df["trader_id"].duplicated().any()
+
+    failed = [k for k, v in results.items() if not v]
+    if failed:
+        logger.error(f"Data quality checks failed: {failed}")
+    else:
+        logger.info("All data quality checks passed.")
+
+    return results
+
+
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+
     traders = generate_traders(100)
     trades = generate_trades(traders, 500)
     transactions = generate_transactions(traders, 300)
@@ -109,5 +153,12 @@ if __name__ == "__main__":
     print(f"Traders: {len(traders)}")
     print(f"Trades: {len(trades)}")
     print(f"Transactions: {len(transactions)}")
+
+    validation_results = validate_simulated_data(traders, trades, transactions)
+    print("\nData quality checks:")
+    for check, passed in validation_results.items():
+        status = "PASS" if passed else "FAIL"
+        print(f"  [{status}] {check}")
+
     print("\nSample trader:")
     print(traders.head(2))
