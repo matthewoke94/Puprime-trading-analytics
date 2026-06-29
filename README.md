@@ -10,7 +10,8 @@ An analytics layer that simulates a realistic trader/trade/transaction dataset, 
 
 ## Outcome
 
-Tracks 100 traders, 500 trades, 300 transactions, $928K in simulated deposits. Every dataset passes 6 automated data quality checks (no orphan records, no negative durations, no invalid amounts) before it's used. 15 unit tests cover both the data generation and the analytics calculations.
+The solution generates and validates a realistic trading dataset consisting of **100 traders, 500 trades, and 300 financial transactions**, representing over **$928K in simulated deposits**. Before any analytics are produced, every dataset passes **six automated data quality validations** to ensure referential integrity and business rule compliance. The project is further supported by **15 automated unit tests**, providing confidence in both the data generation process and the analytical calculations.
+
 
 ---
 
@@ -87,11 +88,12 @@ streamlit run src/analytics/dashboard.py
 - No authentication on the dashboard — fine for a portfolio demo, would need access control in production
 - `trader_analytics.py` functions currently accept DataFrames as input; pointing them at the database would mean adding a thin data-access layer that queries Postgres and passes the result through unchanged
 
-## Business value
+## Business Value
 
-This is the layer that turns raw trading activity into decisions: which traders to prioritize for retention, which currency pairs are most/least profitable for the business, and whether deposit revenue is trending up or down month over month.
+This project demonstrates how data engineering and analytics can transform raw trading activity into actionable business intelligence. By consolidating trader performance, symbol profitability, and deposit trends into a single analytics layer, brokers can make more informed decisions around client retention, revenue growth, risk monitoring, and operational performance. The modular architecture also allows the analytics layer to transition from simulated data to a production database with minimal code changes.
 
 ## Author
 
-Matthew James — Data Engineer
-GitHub: github.com/matthewoke94
+Matthew James
+
+Data Engineer | Python | SQL | ETL | Data Pipelines
