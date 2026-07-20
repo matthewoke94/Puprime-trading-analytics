@@ -1,6 +1,6 @@
 # PuPrime Trading Analytics Dashboard
 
-<<<<<<< HEAD
+
 ## Business problem
 
 Forex brokers need visibility into how their client base is actually performing — which traders are profitable, which currency pairs drive the most activity, and whether deposit revenue is growing or shrinking month over month. Without this, business decisions (marketing spend, account manager focus, risk flagging) are made blind.
